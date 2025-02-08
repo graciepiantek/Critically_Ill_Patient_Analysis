@@ -1,0 +1,56 @@
+
+```{r}
+library(tidyverse)
+library(caret)
+library(pROC)
+
+support <- read.csv("../data/Support_2_Clean_Df.csv")
+
+dictionary <- read.csv('../data/Data_Dictionary_CIP.csv')
+```
+
+```{r}
+#lab_value_vars <- c("alb", "bili", "bun", "ca", "crea", "meanbp", "pafi", "ph", "sod", "temp", "wblc")
+
+severity_vars <- c("aps", "ards_severity", "scoma", "sps")
+
+#demographic_vars <- c("age", "sex", "race", "edu", "income")
+
+comorbid_vars <- c("dementia", "diabetes", "num.co")
+```
+
+```{r}
+severity_model <- support |>
+  select(death, all_of(severity_vars)) |>
+  mutate(
+    ards_severity = factor(ards_severity)
+  ) |>
+  na.omit()
+
+set.seed(123)
+train_index <- createDataPartition(severity_model$death, p = 0.75, list = FALSE)
+train <- severity_model[train_index, ]
+test <- severity_model[-train_index, ]
+
+train_scaled <- train |> 
+  mutate(across(c("aps", "scoma", "sps"), scale))
+test_scaled <- test |> 
+  mutate(across(c("aps", "scoma", "sps"), scale))
+
+severity_model <- glm(death ~ .,
+                     data = train_scaled,
+                     family = "binomial")
+
+summary(severity_model)
+
+```
+
+```{r}
+predictions <- predict(severity_model, test_scaled, type = "response")
+
+roc_curve <- roc(test_scaled$death, predictions)
+auc_value <- auc(roc_curve)
+
+plot(roc_curve, main = paste("ROC Curve (AUC =", round(auc_value, 3), ")"))
+```
+
