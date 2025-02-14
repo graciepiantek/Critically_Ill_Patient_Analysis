@@ -3,7 +3,13 @@ library(shiny)
 library(tidyverse)
 library(caret)
 library(pROC)
+library(plotly)
+library(here)
+library(DT)
 
+setwd(here("data"))
+support <- read.csv('Support_2_Clean_Df.csv')
+dictionary <- read.csv('Data_Dictionary_CIP.csv')
 
 severity_vars <- c("aps", "ards_severity", "scoma", "sps")
 comorbid_vars <- c("dementia", "diabetes", "num.co")
@@ -11,7 +17,7 @@ lab_value_vars <- c("alb", "bili", "bun", "crea", "meanbp", "pafi",
                     "sod", "temp", "urine", "wblc")
 #demographic_vars <- c("age", "sex", "race", "edu", "income")
 
-log_model_function <- function(data = support, 
+log_model_function <- function(data = support,
                                predictor_sets = list(), 
                                outcome = "death",
                                split_ratio = 0.75,
@@ -60,6 +66,24 @@ log_model_function <- function(data = support,
   model <- glm(formula, data = train_scaled, family = "binomial")
   
   predictions <- predict(model, test_scaled, type = "response")
+  
+  calb_data <- data.frame(
+    pred_prob = predictions,
+    actual = test_scaled[[outcome]]
+  )
+  
+  calb_data$bin <- cut(calb_data$pred_prob, 
+                      breaks = seq(0, 1, by = 0.1),
+                      include.lowest = TRUE)
+  
+  calibration <- calb_data |>
+    group_by(bin) |>
+    summarise(
+      mean_pred = mean(pred_prob),
+      mean_actual = mean(actual),
+      n = n()
+    )
+  
   roc_curve <- roc(test_scaled[[outcome]], predictions)
   auc_value <- auc(roc_curve)
   
@@ -82,7 +106,8 @@ log_model_function <- function(data = support,
     roc_curve = roc_curve,
     auc = auc_value,
     sensitivity = sensitivity,
-    specificity = specificity
+    specificity = specificity,
+    calibration = calibration
   ))
 }
 

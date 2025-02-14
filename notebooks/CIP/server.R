@@ -1,8 +1,7 @@
 
-function(input, output, session) {
+server <- function(input, output, session) {
   
   model_results <- eventReactive(input$run_model, {
-
     selected_predictors <- list()
     
     if("severity" %in% input$predictor_sets) {
@@ -60,4 +59,48 @@ function(input, output, session) {
     cat("Sensitivity:", round(model_results()$sensitivity, 3), "\n")
     cat("Specificity:", round(model_results()$specificity, 3), "\n")
   })
+  
+  output$calibration_plot <- renderPlotly({
+    req(model_results())
+    
+    cal_data <- model_results()$calibration
+    
+    plot_ly() |>
+      add_trace(
+        data = cal_data,
+        x = ~mean_pred,
+        y = ~mean_actual,
+        type = 'scatter',
+        mode = 'lines+markers',
+        name = 'Calibration curve',
+        text = ~paste('Bin size:', n,
+                      '<br>Predicted:', round(mean_pred, 3),
+                      '<br>Actual:', round(mean_actual, 3)),
+        hoverinfo = 'text'
+      ) |>
+      add_trace(
+        x = c(0,1),
+        y = c(0,1),
+        type = 'scatter',
+        mode = 'lines',
+        line = list(dash = 'dash'),
+        name = 'Perfect calibration'
+      ) |>
+      layout(
+        title = "Calibration Curve",
+        xaxis = list(title = "Predicted Probability"),
+        yaxis = list(title = "Observed Proportion"),
+        showlegend = TRUE
+      )
+  })
+  output$data_dictionary <- DT::renderDataTable({
+    DT::datatable(dictionary,
+                  options = list(pageLength = 25,  
+                                 scrollX = TRUE,
+                                 scrollY = "500px"),
+                                 rownames = FALSE)
+  })
+  
 }
+
+
